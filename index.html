@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kerala GSB Konkani explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anek+Malayalam:wdth,wght@75..125,300..700&family=Anek+Devanagari:wght@400;600&family=Anek+Kannada:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  header { background: var(--head-bg); color: var(--head-fg); padding: .7rem 1.2rem; display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; align-items: center; }
+  header h1 { margin: 0; font-size: 1.35rem; font-weight: 600; font-stretch: 112%; letter-spacing: .01em; }
+  .scenes { display: flex; gap: .3rem; }
+  .scenes button { background: none; border: 0; color: var(--head-fg); opacity: .65; padding: .25rem .55rem; border-bottom: 2px solid transparent; }
+  .scenes button[aria-pressed="true"] { opacity: 1; border-bottom-color: var(--brass); }
+  .search { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+  .search input { width: min(16rem, 60vw); background: transparent; color: var(--head-fg); border: 1px solid #ffffff40; border-radius: 6px; padding: .3rem .6rem; }
+  .search input::placeholder { color: #ffffff90; }
+  #issuesBtn { background: none; border: 1px solid #ffffff40; color: var(--head-fg); border-radius: 6px; padding: .25rem .6rem; font-size: .85rem; }
+  #issuesBtn.has { border-color: var(--brass); color: var(--brass); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; gap: 1.2rem; padding: 1.2rem; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .stage { position: relative; align-self: start; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--paper); }
+  .stage img { display: block; width: 100%; height: auto; }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hs { fill: transparent; stroke: transparent; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .15s, stroke .15s; }
+  .stage:hover .hs { stroke: color-mix(in srgb, var(--brass) 55%, transparent); stroke-dasharray: 5 4; }
+  .hs:hover, .hs:focus { fill: color-mix(in srgb, var(--brass) 22%, transparent); stroke: var(--brass); stroke-dasharray: none; outline: none; }
+  .hs.active { fill: color-mix(in srgb, var(--brass) 30%, transparent); stroke: var(--brass); stroke-width: 3; stroke-dasharray: none; }
+  .count { position: absolute; transform: translate(-50%, -50%); pointer-events: none; background: var(--head-bg); color: var(--head-fg); border: 2px solid var(--brass); font-size: .78rem; font-weight: 600; min-width: 1.7rem; height: 1.7rem; border-radius: 1rem; display: grid; place-items: center; padding: 0 .35rem; }
+  .count.zero { border-style: dashed; opacity: .7; }
+  aside { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.2rem; align-self: start; min-height: 20rem; }
+  aside h2 { margin: 0 0 .2rem; font-size: 1.5rem; font-weight: 600; font-stretch: 108%; }
+  aside h3 { margin: 1.1rem 0 .3rem; font-size: 1rem; font-weight: 600; }
+  .back { background: none; border: 0; padding: 0; color: var(--leaf); margin-bottom: .6rem; }
+  .list { list-style: none; padding: 0; margin: .6rem 0 0; }
+  .list li + li { border-top: 1px solid var(--line); }
+  .list button { width: 100%; text-align: left; background: none; border: 0; padding: .55rem 0; display: flex; justify-content: space-between; gap: 1rem; }
+  .list button:hover .hw { color: var(--leaf); }
+  .hw { font-weight: 600; }
+  .word-head { font-size: 2rem; font-weight: 600; line-height: 1.15; margin: 0; font-stretch: 110%; }
+  .scripts { display: flex; flex-wrap: wrap; gap: .2rem 1rem; font-size: 1.15rem; margin: .4rem 0; }
+  .deva { font-family: var(--font-deva); } .knda { font-family: var(--font-knda); }
+  .ipa { font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", serif; }
+  dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: .25rem .9rem; }
+  dt { color: var(--ink-2); } dd { margin: 0; }
+  .conf { display: inline-block; font-size: .8rem; padding: .05rem .5rem; border-radius: 1rem; margin-left: .4rem; vertical-align: .1em; }
+  .conf.attested { background: var(--leaf); color: var(--paper); }
+  .conf.proposed { background: color-mix(in srgb, var(--brass) 25%, transparent); color: var(--ink); border: 1px solid var(--brass); }
+  .conf.speculative { border: 1px dashed var(--ink-2); color: var(--ink-2); }
+  .thumb { display: block; width: 100%; max-width: 14rem; aspect-ratio: 1; object-fit: cover; border-radius: 8px; margin-top: .8rem; }
+  .play { display: inline-flex; align-items: center; gap: .4rem; }
+  .issue { padding: .45rem 0; border-top: 1px solid var(--line); font-size: .92rem; }
+  .issue b { display: block; font-weight: 600; }
+  .loader { max-width: 34rem; margin: 3rem auto; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 1.5rem; }
+  .loader h2 { margin-top: 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Kerala GSB Konkani</h1>
+  <nav class="scenes" id="sceneTabs" aria-label="Scenes"></nav>
+  <a href="play.html" style="color:var(--head-fg);opacity:.8;font-size:.9rem">Match game</a>
+  <div class="search">
+    <label for="q" class="sr">Search words</label>
+    <input id="q" type="search" placeholder="Search words or meanings">
+    <button id="issuesBtn" hidden></button>
+  </div>
+</header>
+<div id="app"></div>
+<script src="config.js"></script>
+<script src="lib.js"></script>
+<script>
+const cfg = window.EXPLORER_CONFIG;
+const { esc } = Lib;
+let D, issues = [], words = [], scene, hotById = new Map(), activeHs = null, audio;
+document.getElementById("title").textContent = cfg.title;
+
+const app = document.getElementById("app");
+
+async function start() {
+  try { init(await Lib.loadAll(cfg)); }
+  catch (e) { showLoader(e); }
+}
+
+function showLoader(e) {
+  app.innerHTML = `<div class="loader">
+    <h2>Load the data files</h2>
+    <p>The explorer couldn’t fetch its data (${esc(e.message)}). This happens when the page is opened straight from disk, or when a Google Sheets link in <code>config.js</code> is wrong.</p>
+    <p>Select <b>lexicon.csv</b>, <b>hotspots.csv</b> and <b>scenes.csv</b> together to view them now.</p>
+    <input type="file" id="files" accept=".csv" multiple>
+    <p id="loadErr" class="err"></p></div>`;
+  document.getElementById("files").onchange = async ev => {
+    const got = {};
+    for (const f of ev.target.files) {
+      const n = f.name.toLowerCase();
+      const key = n.includes("lexicon") ? "lexicon" : n.includes("hotspot") ? "hotspots" : n.includes("scene") ? "scenes" : null;
+      if (key) got[key] = Lib.parseCSV(await f.text());
+    }
+    const missing = ["lexicon", "hotspots", "scenes"].filter(k => !got[k]);
+    if (missing.length) { document.getElementById("loadErr").textContent = `Still missing: ${missing.join(", ")}.csv`; return; }
+    init(got);
+  };
+}
+
+function init(data) {
+  D = data;
+  issues = Lib.validate(D);
+  words = D.lexicon.filter(w => (w.status || "").toLowerCase() === "published");
+  D.hotspots.forEach(h => { h.points = Lib.parsePolygon(h.polygon); hotById.set(h.hotspot_id, h); });
+  D.scenes.sort((a, b) => (+a.order || 0) - (+b.order || 0));
+  const btn = document.getElementById("issuesBtn");
+  btn.hidden = false;
+  btn.textContent = issues.length ? `${issues.length} data issue${issues.length > 1 ? "s" : ""}` : "Data OK";
+  btn.classList.toggle("has", issues.length > 0);
+  btn.onclick = showIssues;
+  const tabs = document.getElementById("sceneTabs");
+  tabs.innerHTML = D.scenes.map(s => `<button data-scene="${esc(s.scene_id)}">${esc(s.title || s.scene_id)}</button>`).join("");
+  tabs.onclick = e => { const b = e.target.closest("button"); if (b) openScene(b.dataset.scene); };
+  document.getElementById("q").oninput = e => e.target.value.trim() ? showSearch(e.target.value.trim()) : showSceneHome();
+  if (!D.scenes.length) { app.innerHTML = `<div class="loader"><h2>No scenes yet</h2><p>Add a row to scenes.csv with a scene_id, title and image path.</p></div>`; return; }
+  openScene(D.scenes[0].scene_id);
+}
+
+const wordsAt = id => words.filter(w => w.hotspot_id === id);
+
+function openScene(id) {
+  scene = D.scenes.find(s => s.scene_id === id);
+  document.querySelectorAll("#sceneTabs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.scene === id));
+  const hs = D.hotspots.filter(h => h.scene_id === id && h.points);
+  app.innerHTML = `<main>
+    <div class="stage" id="stage">
+      <img src="${esc(scene.image)}" alt="${esc(scene.title)} scene">
+      <svg viewBox="0 0 1 1" preserveAspectRatio="none" role="group" aria-label="Objects in the ${esc(scene.title)}">
+        ${hs.map(h => `<polygon class="hs" data-id="${esc(h.hotspot_id)}" points="${h.points.map(p => p.join(",")).join(" ")}" tabindex="0" role="button" aria-label="${esc(h.label)}, ${wordsAt(h.hotspot_id).length} words"><title>${esc(h.label)}</title></polygon>`).join("")}
+      </svg>
+      ${hs.map(h => { const [x, y] = Lib.centroid(h.points), n = wordsAt(h.hotspot_id).length;
+        return `<span class="count${n ? "" : " zero"}" style="left:${x * 100}%;top:${y * 100}%" aria-hidden="true">${n}</span>`; }).join("")}
+    </div>
+    <aside id="panel" aria-live="polite"></aside></main>`;
+  const svg = app.querySelector("svg");
+  svg.onclick = e => { const p = e.target.closest(".hs"); if (p) showHotspot(p.dataset.id); };
+  svg.onkeydown = e => { const p = e.target.closest(".hs"); if (p && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); showHotspot(p.dataset.id); } };
+  showSceneHome();
+}
+
+function setActive(id) {
+  activeHs = id;
+  app.querySelectorAll(".hs").forEach(p => p.classList.toggle("active", p.dataset.id === id));
+}
+const panel = () => document.getElementById("panel");
+
+function wordList(list) {
+  return `<ul class="list">${list.map(w => `<li><button data-word="${esc(w.word_id)}"><span class="hw">${esc(w.romanized)}</span><span class="muted">${esc(w.meaning.length > 38 ? w.meaning.slice(0, 36) + "…" : w.meaning)}</span></button></li>`).join("")}</ul>`;
+}
+function bindWords(back) {
+  panel().querySelectorAll("[data-word]").forEach(b => b.onclick = () => showWord(b.dataset.word, back));
+}
+
+function showSceneHome() {
+  setActive(null);
+  const ids = new Set(D.hotspots.filter(h => h.scene_id === scene.scene_id).map(h => h.hotspot_id));
+  const here = words.filter(w => ids.has(w.hotspot_id)).length;
+  const unplaced = words.filter(w => !w.hotspot_id || !hotById.has(w.hotspot_id));
+  panel().innerHTML = `<h2>${esc(scene.title)}</h2>
+    <p class="muted">${here} word${here === 1 ? "" : "s"} placed here, ${words.length} published in total.</p>
+    <p>Select an object in the picture to see its words.</p>
+    ${unplaced.length ? `<h3>Not yet placed</h3><p class="muted">Published words with no object in any scene.</p>${wordList(unplaced)}` : ""}`;
+  bindWords(showSceneHome);
+}
+
+function showHotspot(id) {
+  setActive(id);
+  const h = hotById.get(id), list = wordsAt(id);
+  panel().innerHTML = `<button class="back">‹ ${esc(scene.title)}</button>
+    <h2>${esc(h.label)}</h2>
+    ${list.length ? wordList(list) : `<p class="muted">No published words for this object yet.</p>`}`;
+  panel().querySelector(".back").onclick = showSceneHome;
+  bindWords(() => showHotspot(id));
+}
+
+function showSearch(q) {
+  const s = q.toLowerCase();
+  const fields = ["romanized", "malayalam_script", "devanagari", "kannada_script", "meaning", "cmp_mangalore_gsb", "cmp_goan", "cmp_malayalam"];
+  const hits = words.filter(w => fields.some(f => (w[f] || "").toLowerCase().includes(s)));
+  setActive(null);
+  panel().innerHTML = `<h2>Search</h2><p class="muted">${hits.length} result${hits.length === 1 ? "" : "s"} for “${esc(q)}”</p>${wordList(hits)}`;
+  bindWords(() => showSearch(q));
+}
+
+function showWord(id, back) {
+  const w = D.lexicon.find(x => x.word_id === id);
+  const h = hotById.get(w.hotspot_id);
+  if (h && h.scene_id !== scene.scene_id) { openScene(h.scene_id); }
+  if (h) setActive(h.hotspot_id);
+  const row = (k, v, cls = "") => v ? `<dt>${k}</dt><dd class="${cls}">${esc(v)}</dd>` : "";
+  const conf = (w.confidence || "").toLowerCase();
+  const cmp = [["Mangalore GSB", w.cmp_mangalore_gsb], ["Goan", w.cmp_goan], ["Malayalam", w.cmp_malayalam]].filter(c => c[1]);
+  panel().innerHTML = `<button class="back">‹ Back</button>
+    <p class="word-head">${esc(w.romanized)}</p>
+    <div class="scripts">${w.malayalam_script ? `<span lang="ml">${esc(w.malayalam_script)}</span>` : ""}${w.devanagari ? `<span class="deva" lang="kok">${esc(w.devanagari)}</span>` : ""}${w.kannada_script ? `<span class="knda" lang="kn">${esc(w.kannada_script)}</span>` : ""}</div>
+    <p class="muted">${w.ipa ? `<span class="ipa">/${esc(w.ipa)}/</span> ` : ""}${esc(w.pos)}</p>
+    ${w.audio_file ? `<button class="btn play" id="play">▶ Listen</button> <span id="aerr" class="err"></span>` : ""}
+    ${w.thumb ? `<img class="thumb" src="${esc(w.thumb)}" alt="${esc(w.meaning)}" onerror="this.remove()">` : ""}
+    <h3>Meaning</h3><p>${esc(w.meaning)}</p>
+    ${w.variants ? `<p class="muted">Also: ${esc(w.variants)}</p>` : ""}
+    ${w.example_konkani ? `<p><i>${esc(w.example_konkani)}</i><br><span class="muted">${esc(w.example_english)}</span></p>` : ""}
+    ${w.etymology ? `<h3>Etymology ${conf ? `<span class="conf ${conf}">${esc(conf)}</span>` : ""}</h3>
+      <p>${w.etymology_lang ? `<b>${esc(w.etymology_lang)}.</b> ` : ""}${esc(w.etymology)}</p>
+      ${w.source ? `<p class="muted">Source: ${esc(w.source)}</p>` : ""}` : ""}
+    ${cmp.length ? `<h3>Compare</h3><dl>${cmp.map(c => row(c[0], c[1])).join("")}</dl>` : ""}
+    ${w.speaker_region ? `<p class="muted">Speaker region: ${esc(w.speaker_region)}</p>` : ""}`;
+  panel().querySelector(".back").onclick = back;
+  const p = document.getElementById("play");
+  if (p) p.onclick = () => {
+    if (audio) audio.pause();
+    audio = new Audio(cfg.audioBase + w.audio_file);
+    audio.onerror = () => document.getElementById("aerr").textContent = `Audio file not found: ${cfg.audioBase}${w.audio_file}`;
+    audio.play().catch(() => {});
+  };
+}
+
+function showIssues() {
+  setActive(null);
+  panel().innerHTML = `<button class="back">‹ ${esc(scene ? scene.title : "Back")}</button><h2>Data check</h2>
+    ${issues.length ? `<p class="muted">Fix these in the sheet. Rows with problems still load where possible.</p>${issues.map(i => `<div class="issue"><b>${esc(i.where)}</b>${esc(i.msg)}</div>`).join("")}` : `<p>No problems found in the three sheets.</p>`}
+    <h3>Media files</h3><p class="muted">Checks that every published word’s audio and thumbnail files exist. Needs the site to be hosted, not opened from disk.</p>
+    <button class="btn" id="chkAudio">Check media files</button><div id="audioRes"></div>`;
+  panel().querySelector(".back").onclick = showSceneHome;
+  document.getElementById("chkAudio").onclick = async () => {
+    const res = document.getElementById("audioRes"); res.textContent = "Checking…";
+    const files = [];
+    words.forEach(w => { if (w.audio_file) files.push([w, cfg.audioBase + w.audio_file]); if (w.thumb) files.push([w, w.thumb]); });
+    const missing = [];
+    await Promise.all(files.map(async ([w, url]) => {
+      try { const r = await fetch(url, { method: "HEAD" }); if (!r.ok) missing.push([w, url]); } catch { missing.push([w, url]); }
+    }));
+    res.innerHTML = missing.length ? `<p class="err">${missing.length} of ${files.length} missing:</p>${missing.map(([w, u]) => `<div class="issue">${esc(w.word_id)}: ${esc(u)}</div>`).join("")}` : `<p>All ${files.length} media files found.</p>`;
+  };
+}
+start();
+</script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hotspot editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anek+Malayalam:wdth,wght@75..125,300..700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  header { background: var(--head-bg); color: var(--head-fg); padding: .7rem 1.2rem; display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; align-items: center; }
+  header h1 { margin: 0; font-size: 1.3rem; font-weight: 600; font-stretch: 112%; }
+  header label { font-size: .9rem; display: flex; gap: .4rem; align-items: center; }
+  header select, header input[type=file] { font-size: .85rem; }
+  header select { background: var(--paper); color: var(--ink); border-radius: 6px; border: 0; padding: .2rem .4rem; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 1.2rem; padding: 1.2rem; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .stage { position: relative; align-self: start; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); cursor: crosshair; user-select: none; touch-action: none; background: var(--paper); }
+  .stage img { display: block; width: 100%; height: auto; pointer-events: none; }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ex { fill: color-mix(in srgb, var(--leaf) 14%, transparent); stroke: var(--leaf); stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: pointer; }
+  .ex:hover { fill: color-mix(in srgb, var(--leaf) 28%, transparent); }
+  .ex.editing { display: none; }
+  .draft { fill: color-mix(in srgb, var(--brass) 25%, transparent); stroke: var(--brass); stroke-width: 2.5; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .tag { position: absolute; transform: translate(-50%, -50%); pointer-events: none; font-size: .78rem; background: var(--paper); color: var(--ink); border: 1px solid var(--leaf); border-radius: 4px; padding: 0 .35rem; white-space: nowrap; }
+  .handle { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--brass); border: 2px solid var(--paper); cursor: grab; }
+  .handle:first-of-type { background: var(--leaf); }
+  aside { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.2rem; align-self: start; }
+  aside h2 { margin: 0 0 .5rem; font-size: 1.25rem; font-weight: 600; }
+  aside h3 { margin: 1.3rem 0 .4rem; font-size: 1rem; font-weight: 600; }
+  .field { display: grid; gap: .15rem; margin-bottom: .6rem; font-size: .9rem; }
+  .field input[readonly] { opacity: .7; }
+  .field input { border: 1px solid var(--line); background: var(--wash); border-radius: 6px; padding: .35rem .5rem; }
+  .row { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0; }
+  .help { font-size: .88rem; color: var(--ink-2); margin: 0 0 .8rem; }
+  output { display: block; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; background: var(--wash); border: 1px solid var(--line); border-radius: 6px; padding: .5rem; word-break: break-all; min-height: 2.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  td { padding: .35rem .2rem; border-top: 1px solid var(--line); }
+  td button { background: none; border: 0; color: var(--leaf); padding: 0; }
+  #msg { min-height: 1.4em; font-size: .9rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hotspot editor</h1>
+  <label>Scene <select id="sceneSel"></select></label>
+  <label>Other image <input type="file" id="imgFile" accept="image/*"></label>
+  <label>Load hotspots.csv <input type="file" id="hotFile" accept=".csv"></label>
+</header>
+<main>
+  <div class="stage" id="stage">
+    <img id="img" alt="Scene being edited">
+    <svg viewBox="0 0 1 1" preserveAspectRatio="none" id="svg"></svg>
+    <div id="overlay"></div>
+  </div>
+  <aside>
+    <h2 id="formTitle">New hotspot</h2>
+    <p class="help">Click around an object to outline it. Drag points to adjust. Click a green shape to edit it; hold Shift to start a new shape on top of one. Backspace removes the last point. A saved hotspot_id can’t be renamed here, because words in the lexicon point to it.</p>
+    <div class="field"><label for="hid">hotspot_id</label><input id="hid" placeholder="kit_hearth"></div>
+    <div class="field"><label for="hlabel">Label shown to visitors</label><input id="hlabel" placeholder="Hearth"></div>
+    <div class="row">
+      <button class="btn primary" id="save">Save hotspot</button>
+      <button class="btn" id="undo">Undo point</button>
+      <button class="btn" id="clear">Start over</button>
+    </div>
+    <div class="row"><button class="btn" id="del" hidden>Delete hotspot</button></div>
+    <p id="msg"></p>
+    <h3>Row for the sheet</h3>
+    <output id="out"></output>
+    <div class="row"><button class="btn" id="copy">Copy row for Google Sheets</button></div>
+    <h3 id="listTitle">Hotspots in this scene</h3>
+    <table id="list"></table>
+    <div class="row"><button class="btn primary" id="download">Download hotspots.csv</button></div>
+  </aside>
+</main>
+<script src="config.js"></script>
+<script src="lib.js"></script>
+<script>
+const cfg = window.EXPLORER_CONFIG, { esc } = Lib, $ = id => document.getElementById(id);
+const HEAD = ["hotspot_id", "scene_id", "label", "polygon"];
+let scenes = [], hotspots = [], sceneId = "", draft = [], editing = null, dragging = null;
+
+function msg(t, err) { $("msg").textContent = t; $("msg").className = err ? "err" : "muted"; }
+
+async function boot() {
+  try { scenes = Lib.parseCSV(await Lib.fetchText(cfg.scenes)); } catch { scenes = []; }
+  try { hotspots = Lib.parseCSV(await Lib.fetchText(cfg.hotspots)); } catch { hotspots = []; msg("Couldn’t fetch hotspots.csv. Load it with the button above, or start fresh.", true); }
+  if (!scenes.length) scenes = [{ scene_id: "scene1", title: "Uploaded image", image: "" }];
+  $("sceneSel").innerHTML = scenes.map(s => `<option value="${esc(s.scene_id)}">${esc(s.title || s.scene_id)}</option>`).join("");
+  setScene(scenes[0].scene_id);
+}
+function setScene(id) {
+  sceneId = id; const s = scenes.find(x => x.scene_id === id);
+  if (s && s.image) $("img").src = s.image;
+  resetDraft(); render();
+}
+$("sceneSel").onchange = e => setScene(e.target.value);
+$("imgFile").onchange = e => { const f = e.target.files[0]; if (f) { $("img").src = URL.createObjectURL(f); msg(`Using ${f.name}. Its path must match the image column in scenes.csv.`); } };
+$("hotFile").onchange = async e => { const f = e.target.files[0]; if (!f) return; hotspots = Lib.parseCSV(await f.text()); resetDraft(); render(); msg(`Loaded ${hotspots.length} hotspots from ${f.name}.`); };
+
+function resetDraft() { draft = []; editing = null; $("hid").readOnly = false; $("hid").value = ""; $("hlabel").value = ""; }
+
+function norm(e) {
+  const r = $("stage").getBoundingClientRect();
+  const c = v => Math.min(1, Math.max(0, v));
+  return [c((e.clientX - r.left) / r.width), c((e.clientY - r.top) / r.height)];
+}
+
+$("stage").addEventListener("click", e => {
+  if (e.target.classList.contains("handle")) return;
+  const ex = e.target.closest(".ex");
+  if (editing) return; // existing shapes are adjusted by dragging; use Start over to draw a new one
+  if (ex && !draft.length && !e.shiftKey) { loadHotspot(ex.dataset.id); return; }
+  draft.push(norm(e)); render();
+});
+$("overlay").addEventListener("pointerdown", e => {
+  if (!e.target.classList.contains("handle")) return;
+  dragging = +e.target.dataset.i; e.target.setPointerCapture(e.pointerId); e.preventDefault();
+});
+$("overlay").addEventListener("pointermove", e => { if (dragging !== null) { draft[dragging] = norm(e); render(); } });
+$("overlay").addEventListener("pointerup", () => { dragging = null; });
+document.addEventListener("keydown", e => {
+  if (e.key === "Backspace" && !/INPUT|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $("undo").click(); }
+});
+
+function loadHotspot(id) {
+  const h = hotspots.find(x => x.hotspot_id === id); if (!h) return;
+  editing = id; draft = Lib.parsePolygon(h.polygon) || [];
+  $("hid").value = h.hotspot_id; $("hid").readOnly = true; $("hlabel").value = h.label; render();
+  msg(`Editing ${id}. Drag points, then save.`);
+}
+
+function currentRow() {
+  return { hotspot_id: $("hid").value.trim(), scene_id: sceneId, label: $("hlabel").value.trim(), polygon: draft.length >= 3 ? Lib.formatPolygon(draft) : "" };
+}
+
+function render() {
+  const here = hotspots.filter(h => h.scene_id === sceneId);
+  const pts = p => p.map(q => q.join(",")).join(" ");
+  $("svg").innerHTML = here.map(h => { const p = Lib.parsePolygon(h.polygon); return p ? `<polygon class="ex${h.hotspot_id === editing ? " editing" : ""}" data-id="${esc(h.hotspot_id)}" points="${pts(p)}"><title>${esc(h.label)}</title></polygon>` : ""; }).join("")
+    + (draft.length ? `<polygon class="draft" points="${pts(draft)}"/>` : "");
+  $("overlay").innerHTML = here.filter(h => h.hotspot_id !== editing).map(h => { const p = Lib.parsePolygon(h.polygon); if (!p) return ""; const [x, y] = Lib.centroid(p); return `<span class="tag" style="left:${x * 100}%;top:${y * 100}%">${esc(h.label || h.hotspot_id)}</span>`; }).join("")
+    + draft.map(([x, y], i) => `<span class="handle" data-i="${i}" style="left:${x * 100}%;top:${y * 100}%"></span>`).join("");
+  $("formTitle").textContent = editing ? `Editing ${editing}` : "New hotspot";
+  $("del").hidden = !editing;
+  const r = currentRow();
+  $("out").textContent = r.polygon ? HEAD.map(k => r[k]).join("\t") : "Add at least 3 points.";
+  $("listTitle").textContent = `Hotspots in this scene (${here.length})`;
+  $("list").innerHTML = here.map(h => `<tr><td>${esc(h.hotspot_id)}</td><td>${esc(h.label)}</td><td><button data-edit="${esc(h.hotspot_id)}">Edit</button></td></tr>`).join("");
+  $("list").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => loadHotspot(b.dataset.edit));
+}
+["hid", "hlabel"].forEach(id => $(id).oninput = render);
+
+$("undo").onclick = () => { if (editing && draft.length <= 3) return msg("A hotspot needs at least 3 points.", true); draft.pop(); render(); };
+$("clear").onclick = () => { resetDraft(); render(); msg(""); };
+$("save").onclick = () => {
+  const r = currentRow();
+  if (!r.hotspot_id) return msg("Enter a hotspot_id.", true);
+  if (!/^[a-z0-9_\-]+$/i.test(r.hotspot_id)) return msg("Use letters, numbers, _ or - in hotspot_id.", true);
+  if (!r.polygon) return msg("Outline the object with at least 3 points.", true);
+  const clash = hotspots.find(h => h.hotspot_id === r.hotspot_id);
+  if (clash && r.hotspot_id !== editing) return msg(`${r.hotspot_id} already exists. Pick another id or edit that one.`, true);
+  if (editing) hotspots = hotspots.map(h => h.hotspot_id === editing ? r : h); else hotspots.push(r);
+  msg(`Saved ${r.hotspot_id}. Download hotspots.csv or copy the row into the sheet.`);
+  editing = r.hotspot_id; render();
+};
+$("del").onclick = () => {
+  if (!confirm(`Delete ${editing}? Words pointing at it will show under “Not yet placed”.`)) return;
+  hotspots = hotspots.filter(h => h.hotspot_id !== editing); msg(`Deleted ${editing}.`); resetDraft(); render();
+};
+$("copy").onclick = async () => {
+  const r = currentRow(); if (!r.polygon) return msg("Nothing to copy yet.", true);
+  try { await navigator.clipboard.writeText(HEAD.map(k => r[k]).join("\t")); msg("Row copied. Paste into the first empty row of the hotspots tab."); }
+  catch { msg("Clipboard blocked. Select the row text above and copy it manually.", true); }
+};
+$("download").onclick = () => {
+  const blob = new Blob([Lib.toCSV(hotspots, HEAD)], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "hotspots.csv"; a.click();
+  msg("Downloaded hotspots.csv. Replace the file in /data, or import it into the sheet tab.");
+};
+boot();
+</script>
+</body>
+</html>

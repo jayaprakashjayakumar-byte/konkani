@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Match the words</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anek+Malayalam:wdth,wght@75..125,300..700&family=Anek+Devanagari:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  header { background: var(--head-bg); color: var(--head-fg); padding: .7rem 1.2rem; display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; align-items: center; }
+  header h1 { margin: 0; font-size: 1.35rem; font-weight: 600; font-stretch: 112%; }
+  header a { color: var(--head-fg); opacity: .75; font-size: .9rem; }
+  .controls { margin-left: auto; display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; font-size: .9rem; }
+  .controls select { background: var(--paper); color: var(--ink); border: 0; border-radius: 6px; padding: .2rem .4rem; }
+  .controls label { display: flex; gap: .35rem; align-items: center; }
+  main { max-width: 860px; margin: 0 auto; padding: 1rem 1rem 2rem; }
+  .status { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: .8rem; }
+  .status p { margin: 0; }
+  #feedback { min-height: 3em; margin: .2rem 0 .8rem; }
+  .pics { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; }
+  .pic { position: relative; background: var(--paper); border: 2px dashed var(--line); border-radius: 10px; padding: 0; overflow: hidden; aspect-ratio: 1; display: flex; flex-direction: column; text-align: center; }
+  .pic img { width: 100%; flex: 1; min-height: 0; object-fit: cover; display: block; }
+  .pic .text { flex: 1; min-height: 0; display: grid; place-items: center; padding: .5rem; font-size: clamp(.8rem, 2.6vw, 1.05rem); line-height: 1.25; overflow: hidden; overflow-wrap: anywhere; }
+  .pic .cap { font-size: .85rem; padding: .2rem .3rem; color: var(--ink-2); min-height: 1.6em; }
+  .pic.over { border-color: var(--brass); border-style: solid; background: color-mix(in srgb, var(--brass) 12%, var(--paper)); }
+  .pic.done { border: 2px solid var(--leaf); cursor: default; }
+  .pic.done .cap { background: var(--leaf); color: var(--paper); font-weight: 600; font-size: 1rem; }
+  .pic.miss { border-color: var(--oxide); border-style: solid; animation: shake .35s; }
+  .pic.hint { border-color: var(--brass); border-style: solid; box-shadow: 0 0 0 4px color-mix(in srgb, var(--brass) 45%, transparent); }
+  @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  .tray { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  .word { background: var(--paper); border: 1.5px solid var(--line); border-radius: 8px; padding: .55rem .4rem; font-size: 1.2rem; font-weight: 600; touch-action: none; user-select: none; cursor: grab; min-height: 3.2rem; }
+  .word .sub { display: block; font-size: .8rem; font-weight: 400; color: var(--ink-2); }
+  .word.sel { border-color: var(--leaf); box-shadow: 0 0 0 3px color-mix(in srgb, var(--leaf) 35%, transparent); }
+  .word.used { visibility: hidden; }
+  .deva { font-family: var(--font-deva); }
+  .ghost { position: fixed; z-index: 10; pointer-events: none; transform: translate(-50%, -60%) rotate(-3deg); box-shadow: 0 6px 18px rgba(0,0,0,.25); opacity: .95; }
+  .done-box { text-align: center; padding: 1.5rem 1rem; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; margin-top: 1rem; }
+  .done-box p { margin: .3rem 0; }
+  .done-box .big { font-size: 1.6rem; font-weight: 600; font-stretch: 110%; }
+  .empty { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 1.4rem; }
+  @media (max-width: 520px) { .pic .cap { font-size: .78rem; } .word { font-size: 1.05rem; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Match the words</h1>
+  <a href="index.html">Explorer</a>
+  <div class="controls">
+    <label>Show words as
+      <select id="mode">
+        <option value="ml">Malayalam script</option>
+        <option value="dev">Devanagari</option>
+        <option value="rom">Romanized</option>
+        <option value="audio">Sound only</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="showMeaning"> Show meanings</label>
+  </div>
+</header>
+<main id="app"></main>
+<script src="config.js"></script>
+<script src="lib.js"></script>
+<script>
+const cfg = window.EXPLORER_CONFIG, { esc } = Lib, $ = id => document.getElementById(id);
+const ROUND = 6;
+let pool = [], round = [], matched = new Set(), misses = {}, tries = 0, selected = null, audio = null, justDragged = false;
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+$("mode").value = store.get("play-mode") || "rom";
+$("showMeaning").checked = store.get("play-meaning") === "1";
+$("mode").onchange = () => { store.set("play-mode", $("mode").value); render(); };
+$("showMeaning").onchange = () => { store.set("play-meaning", $("showMeaning").checked ? "1" : "0"); render(); };
+
+async function start() {
+  try { setPool(Lib.parseCSV(await Lib.fetchText(cfg.lexicon))); }
+  catch (e) {
+    $("app").innerHTML = `<div class="empty"><p>Couldn’t fetch the word list (${esc(e.message)}). Pick lexicon.csv to play from a local copy.</p><input type="file" id="f" accept=".csv"></div>`;
+    $("f").onchange = async ev => { const f = ev.target.files[0]; if (f) setPool(Lib.parseCSV(await f.text())); };
+  }
+}
+const isYes = v => ["yes", "y", "true", "1"].includes((v || "").trim().toLowerCase());
+function setPool(rows) {
+  const published = rows.filter(r => (r.status || "").toLowerCase() === "published");
+  pool = published.filter(r => isYes(r.game) && r.romanized);
+  if (pool.length >= 2) { newRound(); return; }
+  const cols = rows.length ? Object.keys(rows[0]) : [];
+  const checks = [
+    [rows.length > 0, `Word list loaded from ${esc(cfg.lexicon)}: ${rows.length} rows.`],
+    [cols.includes("game"), cols.includes("game") ? "The <b>game</b> column exists." : "There is no <b>game</b> column. Add one (and <b>thumb</b>) to the lexicon header; this is probably an older lexicon.csv."],
+    [cols.includes("status"), cols.includes("status") ? "The <b>status</b> column exists." : "There is no <b>status</b> column."],
+    [published.length > 0, `${published.length} rows have status set to published.`],
+    [pool.length >= 2, `${published.filter(r => isYes(r.game)).length} of those have game set to yes (need at least 2).`]
+  ];
+  $("app").innerHTML = `<div class="empty"><p><b>No words to play yet.</b> Here’s what the game found:</p>
+    <ul>${checks.map(([ok, t]) => `<li class="${ok ? "" : "err"}">${ok ? "✓" : "✗"} ${t}</li>`).join("")}</ul>
+    ${cols.length ? `<p class="muted">Columns found: ${esc(cols.join(", "))}</p>` : ""}</div>`;
+}
+function shuffle(a) { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function newRound() {
+  round = shuffle(pool).slice(0, ROUND);
+  matched = new Set(); misses = {}; tries = 0; selected = null;
+  round.picOrder = shuffle(round); round.wordOrder = shuffle(round);
+  render(); say("Drag a word onto its picture, or tap a word and then the picture.");
+}
+
+function wordFace(w) {
+  const m = $("mode").value;
+  if (m === "audio") return w.audio_file ? `▶<span class="sub">Tap to hear</span>` : `${esc(w.romanized)}<span class="sub">No recording yet</span>`;
+  if (m === "ml" && w.malayalam_script) return `<span lang="ml">${esc(w.malayalam_script)}</span><span class="sub">${esc(w.romanized)}</span>`;
+  if (m === "dev" && w.devanagari) return `<span class="deva" lang="kok">${esc(w.devanagari)}</span><span class="sub">${esc(w.romanized)}</span>`;
+  return esc(w.romanized);
+}
+const meaningOf = w => w.meaning.replace(/[.\s]+$/, "");
+const wordName = w => w.malayalam_script && $("mode").value === "ml" ? w.malayalam_script : w.devanagari && $("mode").value === "dev" ? w.devanagari : w.romanized;
+
+function render() {
+  const showMeaning = $("showMeaning").checked;
+  const total = round.length;
+  const finished = matched.size === total;
+  $("app").innerHTML = `
+    <div class="status"><p><b>${matched.size} of ${total}</b> matched</p><p class="muted">${tries} ${tries === 1 ? "try" : "tries"}</p></div>
+    <p id="feedback" aria-live="polite"></p>
+    <div class="pics">${round.picOrder.map(w => {
+      const done = matched.has(w.word_id);
+      const img = w.thumb ? `<img src="${esc(w.thumb)}" alt="${done || showMeaning ? esc(w.meaning) : "Picture " + (round.picOrder.indexOf(w) + 1)}" draggable="false" data-m="${esc(w.meaning)}" onerror="noPic(this)">` : `<span class="text">${esc(w.meaning)}</span>`;
+      const cap = done ? esc(wordName(w)) : (showMeaning && w.thumb ? esc(w.meaning) : "");
+      return `<button class="pic${done ? " done" : ""}" data-id="${esc(w.word_id)}" ${done ? "disabled" : ""}>${img}<span class="cap">${cap}</span></button>`;
+    }).join("")}</div>
+    ${finished ? doneBox() : `<div class="tray">${round.wordOrder.map(w =>
+      `<button class="word${matched.has(w.word_id) ? " used" : ""}${selected === w.word_id ? " sel" : ""}" data-id="${esc(w.word_id)}" ${matched.has(w.word_id) ? 'tabindex="-1"' : ""}>${wordFace(w)}</button>`).join("")}</div>`}`;
+  bind();
+}
+// A thumb path whose file isn't there yet shows the meaning as text, like a word with no thumb.
+function noPic(img) { const t = document.createElement("span"); t.className = "text"; t.textContent = img.dataset.m; img.replaceWith(t); }
+function doneBox() {
+  const pct = Math.round(100 * round.length / Math.max(tries, 1));
+  const best = +store.get("play-best-" + round.mode) || pct;
+  return `<div class="done-box"><p class="big">All ${round.length} matched in ${tries} tries</p>
+    <p class="muted">${pct}% accuracy. Your best with ${esc($("mode").selectedOptions[0].text.toLowerCase())}: ${best}%.</p>
+    <p><button class="btn primary" id="again">Play another round</button></p></div>`;
+}
+function say(t, cls = "") { const f = $("feedback"); if (f) { f.textContent = t; f.className = cls; } }
+
+function play(w) {
+  if (!w.audio_file) return;
+  if (audio) audio.pause();
+  audio = new Audio(cfg.audioBase + w.audio_file);
+  audio.play().catch(() => {});
+}
+
+function bind() {
+  const again = $("again"); if (again) again.onclick = newRound;
+  document.querySelectorAll(".pic:not(.done)").forEach(p => p.onclick = () => {
+    if (selected) check(selected, p.dataset.id);
+    else say("Pick a word first.");
+  });
+  document.querySelectorAll(".word:not(.used)").forEach(b => {
+    b.onclick = () => { if (justDragged) return; choose(b.dataset.id); };
+    b.onpointerdown = e => dragStart(e, b);
+  });
+}
+function choose(id) {
+  selected = selected === id ? null : id;
+  const w = round.find(x => x.word_id === id);
+  if (selected && $("mode").value === "audio") play(w);
+  document.querySelectorAll(".word").forEach(b => b.classList.toggle("sel", b.dataset.id === selected));
+  if (selected) say("Now tap its picture.");
+}
+
+function dragStart(e, el) {
+  if (e.button > 0) return;
+  justDragged = false; // a new gesture; any click that follows belongs to it
+  const sx = e.clientX, sy = e.clientY, id = el.dataset.id;
+  let ghost = null, over = null;
+  const move = ev => {
+    if (!ghost && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 8) return;
+    if (!ghost) {
+      ghost = el.cloneNode(true); ghost.classList.add("ghost"); ghost.style.width = el.offsetWidth + "px";
+      document.body.appendChild(ghost); el.style.opacity = ".35";
+      if ($("mode").value === "audio") play(round.find(x => x.word_id === id));
+    }
+    ghost.style.left = ev.clientX + "px"; ghost.style.top = ev.clientY + "px";
+    const t = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".pic:not(.done)");
+    if (t !== over) { over?.classList.remove("over"); t?.classList.add("over"); over = t; }
+  };
+  const up = () => {
+    document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
+    if (!ghost) return;
+    ghost.remove(); el.style.opacity = ""; over?.classList.remove("over");
+    justDragged = true; // swallow the click this drag may generate
+    if (over) check(id, over.dataset.id);
+  };
+  document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
+}
+
+function check(wordId, picId) {
+  tries++;
+  const w = round.find(x => x.word_id === wordId);
+  if (wordId === picId) {
+    matched.add(wordId); selected = null;
+    if (matched.size === round.length) {
+      round.mode = $("mode").value;
+      const key = "play-best-" + round.mode, pct = Math.round(100 * round.length / tries);
+      store.set(key, Math.max(+store.get(key) || 0, pct));
+    }
+    play(w);
+    render();
+    say(matched.size === round.length ? "" : `Right. ${wordName(w)} means ${meaningOf(w)}.`, "");
+    return;
+  }
+  misses[wordId] = (misses[wordId] || 0) + 1;
+  render();
+  const pic = document.querySelector(`.pic[data-id="${CSS.escape(picId)}"]`);
+  pic?.classList.add("miss"); setTimeout(() => pic?.classList.remove("miss"), 400);
+  if (misses[wordId] >= 2) {
+    const right = document.querySelector(`.pic[data-id="${CSS.escape(wordId)}"]`);
+    right?.classList.add("hint"); setTimeout(() => right?.classList.remove("hint"), 2200);
+    say(`Not that one. ${wordName(w)} means ${meaningOf(w)}. Its picture is highlighted.`, "err");
+    play(w);
+  } else say("Not that one. Try again.", "err");
+}
+start();
+</script>
+</body>
+</html>
