@@ -61,12 +61,6 @@ Hotspot polygons are stored as fractions of the image width and height (0–1), 
 
 Thumbnails: crop to a square, about 400 px, WebP or JPEG under 60 KB. The placeholder thumbs in `images/thumbs/` are crops of the sketch.
 
-## Hosting
-
-1. Put the folder in a GitHub repository and turn on GitHub Pages (Settings → Pages → deploy from branch). Any static host works.
-2. To edit data in Google Sheets instead of CSV files: make one sheet with three tabs named `lexicon`, `hotspots`, `scenes` using the same column headers. For each tab, File → Share → Publish to web → select the tab → CSV, then paste the three links into `config.js`. Edits go live on page refresh (Google caches published sheets for a few minutes).
-
-Opening `index.html` directly from disk blocks data loading in most browsers; the page then asks you to pick the three CSVs manually. To preview locally, run `python -m http.server` in the folder and open http://localhost:8000.
 
 ## Current word list
 
