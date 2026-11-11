@@ -1,13 +1,11 @@
 # Kerala GSB Konkani explorer
 
-Two pages, three sheets, one image per scene. No build step, no server code.
-
 ## Files
 
 | File | Purpose |
 |---|---|
 | `index.html` | The explorer visitors use |
-| `editor.html` | Your tool for drawing clickable areas on a scene image |
+| `editor.html` | Tool for drawing clickable areas on a scene image |
 | `play.html` | Match game: drag or tap words onto pictures |
 | `config.js` | Where the data lives (local CSVs or Google Sheets links) |
 | `data/lexicon.csv` | One row per word |
